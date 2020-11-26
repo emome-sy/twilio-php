@@ -30,8 +30,7 @@ class Verify extends Domain {
      */
     public function __construct(Client $client) {
         parent::__construct($client);
-
-        $this->baseUrl = 'https://verify.twilio.com';
+        $this->baseUrl = app('config')->get('twilio.endpoints.v2.verify');
     }
 
     /**

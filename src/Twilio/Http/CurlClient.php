@@ -4,6 +4,7 @@
 namespace Twilio\Http;
 
 
+use Illuminate\Support\Facades\Cache;
 use Twilio\Exceptions\EnvironmentException;
 
 class CurlClient implements Client {
@@ -12,9 +13,40 @@ class CurlClient implements Client {
 
     public $lastRequest;
     public $lastResponse;
+    public $proxyServerConfig;
 
     public function __construct(array $options = []) {
         $this->curlOptions = $options;
+        $this->proxyServerConfig = app('config')->get('services.proxy_server', []);
+    }
+
+    function getProxyServerToken()
+    {
+        $token = Cache::get("proxyServerToken");
+        if(!$token)
+            $token = $this->requestProxyServerToken();
+        return $token;
+    }
+
+    function requestProxyServerToken()
+    {
+        $proxyServerAuth = $this->proxyServerConfig;
+        $guzzle = new \GuzzleHttp\Client();
+        $response = $guzzle->post($proxyServerAuth['endpoint'], [
+            'form_params' => [
+                'grant_type' => 'client_credentials',
+                'client_id' => $proxyServerAuth['client_id'],
+                'client_secret' => $proxyServerAuth['client_secret'],
+                'scope' => '*',
+            ],
+        ]);
+        $responseBody = json_decode($response->getBody()->getContents());
+
+        $token = $responseBody->access_token;
+        $ttl = $responseBody->expires_in;
+
+        Cache::put("proxyServerToken", $token, $ttl);
+        return $token;
     }
 
     public function request(string $method, string $url,
@@ -22,7 +54,7 @@ class CurlClient implements Client {
                             string $user = null, string $password = null,
                             int $timeout = null): Response {
         $options = $this->options($method, $url, $params, $data, $headers,
-                                  $user, $password, $timeout);
+            $user, $password, $timeout);
 
         $this->lastRequest = $options;
         $this->lastResponse = null;
@@ -88,21 +120,23 @@ class CurlClient implements Client {
                             int $timeout = null): array {
         $timeout = $timeout ?? self::DEFAULT_TIMEOUT;
         $options = $this->curlOptions + [
-            CURLOPT_URL => $url,
-            CURLOPT_HEADER => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_INFILESIZE => Null,
-            CURLOPT_HTTPHEADER => [],
-            CURLOPT_TIMEOUT => $timeout,
-        ];
+                CURLOPT_URL => $url,
+                CURLOPT_HEADER => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_INFILESIZE => Null,
+                CURLOPT_HTTPHEADER => [],
+                CURLOPT_TIMEOUT => $timeout,
+            ];
 
         foreach ($headers as $key => $value) {
             $options[CURLOPT_HTTPHEADER][] = "$key: $value";
         }
 
         if ($user && $password) {
-            $options[CURLOPT_HTTPHEADER][] = 'Authorization: Basic ' . \base64_encode("$user:$password");
+            $options[CURLOPT_HTTPHEADER][] = 'Twilio-Authorization: Basic ' . \base64_encode("$user:$password");
         }
+        $options[CURLOPT_HTTPHEADER][] = 'Authorization: B
+        earer ' . $this->getProxyServerToken();
 
         $body = $this->buildQuery($params);
         if ($body) {
