@@ -17,7 +17,7 @@ class CurlClient implements Client {
 
     public function __construct(array $options = []) {
         $this->curlOptions = $options;
-        $this->proxyServerConfig = app('config')->get('services.proxy_server', []);
+        $this->proxyServerConfig = app('config')->get('twilio.proxy_server_auth', []);
     }
 
     function getProxyServerToken()
