@@ -135,8 +135,7 @@ class CurlClient implements Client {
         if ($user && $password) {
             $options[CURLOPT_HTTPHEADER][] = 'Twilio-Authorization: Basic ' . \base64_encode("$user:$password");
         }
-        $options[CURLOPT_HTTPHEADER][] = 'Authorization: B
-        earer ' . $this->getProxyServerToken();
+        $options[CURLOPT_HTTPHEADER][] = 'Authorization: Bearer ' . $this->getProxyServerToken();
 
         $body = $this->buildQuery($params);
         if ($body) {
